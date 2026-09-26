@@ -167,7 +167,18 @@ async def message_read(event):
             f"❌ ERROR MESSAGE READ: {e}"
         )
 
+# =========================================================
+# TEST USERBOT
+# =========================================================
 
+@client.on(events.NewMessage(pattern=r"^/test$"))
+async def test_userbot(event):
+
+    if not event.is_private:
+        return
+
+    await event.reply("✅ USERBOT AKTIF")
+    print("🧪 TEST USERBOT BERHASIL")
 # =========================================================
 # RENDER WEB SERVER
 # =========================================================
