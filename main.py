@@ -7,9 +7,9 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
 
-# =========================
+# =========================================================
 # ENVIRONMENT VARIABLES
-# =========================
+# =========================================================
 
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
@@ -17,9 +17,9 @@ SESSION = os.getenv("SESSION")
 PORT = int(os.getenv("PORT", "10000"))
 
 
-# =========================
+# =========================================================
 # AUTO REPLY
-# =========================
+# =========================================================
 
 BALASAN = [
     "RENTOD nya lagi sibuk!!!",
@@ -30,9 +30,9 @@ BALASAN = [
 ]
 
 
-# =========================
+# =========================================================
 # TELEGRAM CLIENT
-# =========================
+# =========================================================
 
 client = TelegramClient(
     StringSession(SESSION),
@@ -41,85 +41,147 @@ client = TelegramClient(
 )
 
 
-# Menyimpan pesan masuk dan
-# balasan otomatisnya
+# =========================================================
+# PENYIMPANAN PESAN
+# =========================================================
+
+# Format:
+#
+# {
+#     incoming_message_id: {
+#         "chat_id": chat_id,
+#         "reply_id": id_balasan
+#     }
+# }
+#
 REPLY_MAP = {}
 
 
-# =========================
-# AUTO REPLY
-# =========================
+# =========================================================
+# AUTO REPLY PESAN PRIBADI
+# =========================================================
 
 @client.on(events.NewMessage(incoming=True))
 async def auto_reply(event):
 
-    # Hanya chat pribadi
-    if not event.is_private:
-        return
+    try:
 
-    balasan = random.choice(BALASAN)
+        # Hanya chat pribadi
+        if not event.is_private:
+            return
 
-    # Kirim balasan
-    reply = await event.reply(balasan)
+        # Jangan proses service message
+        if not event.message:
+            return
 
-    # Simpan hubungan pesan
-    REPLY_MAP[event.id] = {
-        "chat_id": event.chat_id,
-        "reply_id": reply.id
-    }
+        # Pilih balasan acak
+        balasan = random.choice(BALASAN)
 
-    print(
-        f"📩 Pesan masuk: {event.id} | "
-        f"Balasan: {reply.id}"
-    )
+        # Kirim balasan
+        reply = await event.reply(balasan)
+
+        # Simpan hubungan pesan masuk dan balasan
+        REPLY_MAP[event.id] = {
+            "chat_id": event.chat_id,
+            "reply_id": reply.id
+        }
+
+        print(
+            f"📩 PESAN MASUK"
+            f" | chat={event.chat_id}"
+            f" | pesan={event.id}"
+        )
+
+        print(
+            f"💬 BALASAN"
+            f" | pesan={reply.id}"
+        )
+
+    except Exception as e:
+
+        print(
+            f"❌ ERROR AUTO REPLY: {e}"
+        )
 
 
-# =========================
-# HAPUS BALASAN SAAT PESAN
-# SUDAH DIBACA
-# =========================
+# =========================================================
+# HAPUS BALASAN KETIKA PESAN SUDAH DIBACA
+# =========================================================
 
 @client.on(events.MessageRead(inbox=True))
 async def message_read(event):
 
     try:
-        for message_id in event.message_ids:
 
-            if message_id not in REPLY_MAP:
-                continue
+        chat_id = event.chat_id
+        max_id = event.max_id
 
-            data = REPLY_MAP[message_id]
+        print(
+            f"👀 PESAN DIBACA"
+            f" | chat={chat_id}"
+            f" | max_id={max_id}"
+        )
 
-            chat_id = data["chat_id"]
+        # Ambil salinan supaya dictionary
+        # aman ketika sedang dihapus
+        for incoming_id, data in list(REPLY_MAP.items()):
+
+            saved_chat_id = data["chat_id"]
             reply_id = data["reply_id"]
 
-            # Hapus balasan otomatis
-            await client.delete_messages(
-                chat_id,
-                reply_id
-            )
+            # Pastikan chat sama
+            if saved_chat_id != chat_id:
+                continue
 
-            print(
-                f"🗑️ Balasan {reply_id} "
-                f"dihapus karena pesan sudah dibaca"
-            )
+            # Pesan pemicu sudah dibaca
+            if incoming_id <= max_id:
 
-            # Hapus data dari memory
-            del REPLY_MAP[message_id]
+                try:
+
+                    # Hapus balasan otomatis
+                    await client.delete_messages(
+                        chat_id,
+                        reply_id
+                    )
+
+                    print(
+                        f"🗑️ BALASAN DIHAPUS"
+                        f" | chat={chat_id}"
+                        f" | reply={reply_id}"
+                    )
+
+                    # Hapus dari daftar
+                    del REPLY_MAP[incoming_id]
+
+                except Exception as e:
+
+                    print(
+                        f"❌ GAGAL HAPUS BALASAN"
+                        f" | {e}"
+                    )
 
     except Exception as e:
-        print("❌ Error menghapus balasan:", e)
+
+        print(
+            f"❌ ERROR MESSAGE READ: {e}"
+        )
 
 
-# =========================
-# RENDER HTTP SERVER
-# =========================
+# =========================================================
+# RENDER WEB SERVER
+# =========================================================
 
 class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
+
         self.send_response(200)
+        self.send_header(
+            "Content-Type",
+            "text/plain"
+        )
         self.end_headers()
+
         self.wfile.write(
             b"Telegram Auto Reply aktif"
         )
@@ -135,8 +197,16 @@ def run_server():
         Handler
     )
 
+    print(
+        f"🌐 Web server aktif di port {PORT}"
+    )
+
     server.serve_forever()
 
+
+# =========================================================
+# START WEB SERVER
+# =========================================================
 
 threading.Thread(
     target=run_server,
@@ -144,11 +214,18 @@ threading.Thread(
 ).start()
 
 
-# =========================
-# START
-# =========================
+# =========================================================
+# START TELEGRAM
+# =========================================================
 
-print("🤖 Telegram Auto-reply aktif di Render...")
+print(
+    "🤖 Telegram Auto Reply sedang dimulai..."
+)
 
 client.start()
+
+print(
+    "✅ Telegram Auto Reply AKTIF"
+)
+
 client.run_until_disconnected()
