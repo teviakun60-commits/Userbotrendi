@@ -180,7 +180,8 @@ async def test_userbot(event):
     await event.reply("✅ USERBOT AKTIF")
     print("🧪 TEST USERBOT BERHASIL")
     @client.on(events.MessageRead())
-@client.on(events.MessageRead())
+@cli
+    ent.on(events.MessageRead())
 async def message_read(event):
     try:
         await asyncio.sleep(1)
