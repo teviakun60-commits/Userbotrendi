@@ -180,12 +180,17 @@ async def test_userbot(event):
     await event.reply("✅ USERBOT AKTIF")
     print("🧪 TEST USERBOT BERHASIL")
     @client.on(events.MessageRead())
+@client.on(events.MessageRead())
 async def message_read(event):
     try:
         await asyncio.sleep(1)
 
         chat_id = event.chat_id
         max_id = event.max_id
+
+        print(
+            f"👀 PESAN DIBACA | chat={chat_id} | max_id={max_id}"
+        )
 
         for incoming_id, data in list(REPLY_MAP.items()):
 
@@ -194,18 +199,22 @@ async def message_read(event):
 
             if incoming_id <= max_id:
 
-                await client.delete_messages(
-                    chat_id,
-                    data["reply_id"]
-                )
+                try:
+                    await client.delete_messages(
+                        chat_id,
+                        data["reply_id"]
+                    )
 
-                print(
-                    f"🗑️ BALASAN DIHAPUS | "
-                    f"chat={chat_id} | "
-                    f"reply={data['reply_id']}"
-                )
+                    print(
+                        f"🗑️ BALASAN DIHAPUS | "
+                        f"chat={chat_id} | "
+                        f"reply={data['reply_id']}"
+                    )
 
-                del REPLY_MAP[incoming_id]
+                    del REPLY_MAP[incoming_id]
+
+                except Exception as e:
+                    print(f"❌ GAGAL HAPUS BALASAN | {e}")
 
     except Exception as e:
         print(f"❌ ERROR MESSAGE READ: {e}")
