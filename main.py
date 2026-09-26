@@ -1,6 +1,7 @@
 import os
 import random
 import threading
+import asyncio
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from telethon import TelegramClient, events
@@ -112,7 +113,7 @@ async def auto_reply(event):
 async def message_read(event):
 
     try:
-
+        await asyncio.sleep(1)
         chat_id = event.chat_id
         max_id = event.max_id
 
