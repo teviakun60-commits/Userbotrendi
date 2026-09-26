@@ -218,14 +218,24 @@ threading.Thread(
 # START TELEGRAM
 # =========================================================
 
-print(
-    "🤖 Telegram Auto Reply sedang dimulai..."
-)
+print("🤖 Telegram Auto Reply sedang dimulai...")
 
-client.start()
+async def start_telegram():
+    await client.connect()
 
-print(
-    "✅ Telegram Auto Reply AKTIF"
-)
+    if not await client.is_user_authorized():
+        print("❌ SESSION TIDAK VALID / BELUM LOGIN")
+        print("❌ Buat SESSION baru dan masukkan ke Environment Variables Render")
+        return
 
-client.run_until_disconnected()
+    me = await client.get_me()
+
+    print(
+        f"✅ LOGIN BERHASIL | "
+        f"ID={me.id} | "
+        f"USERNAME=@{me.username}"
+    )
+
+
+
+client.loop.run_until_complete(start_telegram())
