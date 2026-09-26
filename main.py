@@ -41,17 +41,74 @@ client = TelegramClient(
 )
 
 
+# Menyimpan pesan masuk dan
+# balasan otomatisnya
+REPLY_MAP = {}
+
+
+# =========================
+# AUTO REPLY
+# =========================
+
 @client.on(events.NewMessage(incoming=True))
 async def auto_reply(event):
 
-    # Hanya membalas chat pribadi
+    # Hanya chat pribadi
     if not event.is_private:
         return
 
-    # Pilih balasan secara acak
     balasan = random.choice(BALASAN)
 
-    await event.reply(balasan)
+    # Kirim balasan
+    reply = await event.reply(balasan)
+
+    # Simpan hubungan pesan
+    REPLY_MAP[event.id] = {
+        "chat_id": event.chat_id,
+        "reply_id": reply.id
+    }
+
+    print(
+        f"📩 Pesan masuk: {event.id} | "
+        f"Balasan: {reply.id}"
+    )
+
+
+# =========================
+# HAPUS BALASAN SAAT PESAN
+# SUDAH DIBACA
+# =========================
+
+@client.on(events.MessageRead(incoming=True))
+async def message_read(event):
+
+    try:
+        for message_id in event.message_ids:
+
+            if message_id not in REPLY_MAP:
+                continue
+
+            data = REPLY_MAP[message_id]
+
+            chat_id = data["chat_id"]
+            reply_id = data["reply_id"]
+
+            # Hapus balasan otomatis
+            await client.delete_messages(
+                chat_id,
+                reply_id
+            )
+
+            print(
+                f"🗑️ Balasan {reply_id} "
+                f"dihapus karena pesan sudah dibaca"
+            )
+
+            # Hapus data dari memory
+            del REPLY_MAP[message_id]
+
+    except Exception as e:
+        print("❌ Error menghapus balasan:", e)
 
 
 # =========================
@@ -72,10 +129,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def run_server():
+
     server = HTTPServer(
         ("0.0.0.0", PORT),
         Handler
     )
+
     server.serve_forever()
 
 
