@@ -50,7 +50,7 @@ REPLY_MAP = {}
 # AUTO REPLY
 # =========================
 
-@client.on(events.NewMessage(incoming=True))
+@client.on(events.NewMessage(inbox=True))
 async def auto_reply(event):
 
     # Hanya chat pribadi
