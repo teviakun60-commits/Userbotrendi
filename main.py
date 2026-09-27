@@ -38,12 +38,15 @@ BALASAN = [
 client = TelegramClient(
     StringSession(SESSION),
     API_ID,
-    API_HASH
+    API_HASH,
+    auto_reconnect=True,
+    connection_retries=None,
+    retry_delay=5
 )
 
 
 # =========================================================
-# PENYIMPANAN PESAN BALASAN
+# PENYIMPANAN BALASAN
 # =========================================================
 
 REPLY_MAP = {}
@@ -56,7 +59,6 @@ REPLY_MAP = {}
 async def sudah_pernah_dibalas(chat_id):
 
     try:
-        # Cari pesan keluar terakhir dari akun userbot
         pesan_keluar = await client.get_messages(
             chat_id,
             limit=1,
@@ -74,8 +76,6 @@ async def sudah_pernah_dibalas(chat_id):
             f"❌ GAGAL CEK RIWAYAT CHAT | {e}"
         )
 
-        # Kalau gagal mengecek, jangan membalas
-        # agar tidak terjadi balasan berulang
         return True
 
 
@@ -88,22 +88,17 @@ async def auto_reply(event):
 
     try:
 
-        # Hanya chat pribadi
         if not event.is_private:
             return
 
-        # Jangan proses pesan kosong
         if not event.message:
             return
 
-        # AKTIF khusus untuk pengecekan userbot
-        if event.raw_text.strip().upper() == "AKTIF":
+        # "aktif" khusus untuk pengecekan userbot
+        if event.raw_text.strip() == "aktif":
             return
 
-        # =================================================
-        # CEK APAKAH AKUN INI SUDAH PERNAH DIBALAS
-        # =================================================
-
+        # Cek apakah sudah pernah membalas chat ini
         if await sudah_pernah_dibalas(event.chat_id):
 
             print(
@@ -113,16 +108,10 @@ async def auto_reply(event):
 
             return
 
-        # =================================================
-        # PILIH BALASAN ACAK
-        # =================================================
-
         balasan = random.choice(BALASAN)
 
-        # Kirim balasan
         reply = await event.reply(balasan)
 
-        # Simpan hubungan pesan masuk dan balasan
         REPLY_MAP[event.id] = {
             "chat_id": event.chat_id,
             "reply_id": reply.id
@@ -148,12 +137,12 @@ async def auto_reply(event):
 
 # =========================================================
 # TEST USERBOT
-# PERINTAH: AKTIF
+# PERINTAH: aktif
 # =========================================================
 
 @client.on(events.NewMessage(
     incoming=True,
-    pattern=r"^AKTIF$"
+    pattern=r"^aktif$"
 ))
 async def test_userbot(event):
 
@@ -169,13 +158,13 @@ async def test_userbot(event):
 
 
 # =========================================================
-# TEST USERBOT DARI AKUN SENDIRI
-# Bisa mengetik AKTIF di Saved Messages
+# TEST DARI AKUN SENDIRI / SAVED MESSAGES
+# PERINTAH: aktif
 # =========================================================
 
 @client.on(events.NewMessage(
     outgoing=True,
-    pattern=r"^AKTIF$"
+    pattern=r"^aktif$"
 ))
 async def test_userbot_sendiri(event):
 
@@ -185,13 +174,13 @@ async def test_userbot_sendiri(event):
     await event.reply("✅ USERBOT AKTIF")
 
     print(
-        f"🧪 TEST USERBOT BERHASIL"
+        f"🧪 TEST USERBOT SENDIRI BERHASIL"
         f" | chat={event.chat_id}"
     )
 
 
 # =========================================================
-# HAPUS BALASAN KETIKA PESAN SUDAH DIBACA
+# HAPUS BALASAN KETIKA PESAN DIBACA
 # =========================================================
 
 @client.on(events.MessageRead(inbox=True))
@@ -215,11 +204,9 @@ async def message_read(event):
             saved_chat_id = data["chat_id"]
             reply_id = data["reply_id"]
 
-            # Pastikan chat sama
             if saved_chat_id != chat_id:
                 continue
 
-            # Pesan pemicu sudah dibaca
             if incoming_id <= max_id:
 
                 try:
@@ -301,7 +288,7 @@ threading.Thread(
 
 
 # =========================================================
-# START TELEGRAM
+# START TELEGRAM + AUTO RECONNECT
 # =========================================================
 
 print(
@@ -311,30 +298,55 @@ print(
 
 async def start_telegram():
 
-    await client.connect()
+    while True:
 
-    if not await client.is_user_authorized():
+        try:
+
+            print(
+                "🔄 Mencoba menghubungkan ke Telegram..."
+            )
+
+            await client.start()
+
+            if not await client.is_user_authorized():
+
+                print(
+                    "❌ SESSION TIDAK VALID / BELUM LOGIN"
+                )
+
+                return
+
+            me = await client.get_me()
+
+            print(
+                f"✅ LOGIN BERHASIL | "
+                f"ID={me.id} | "
+                f"USERNAME=@{me.username}"
+            )
+
+            print(
+                "✅ Telegram Auto Reply AKTIF"
+            )
+
+            # Menunggu koneksi Telegram.
+            # Kalau koneksi putus, lanjut ke reconnect.
+            await client.run_until_disconnected()
+
+            print(
+                "⚠️ Koneksi Telegram terputus."
+            )
+
+        except Exception as e:
+
+            print(
+                f"❌ TELEGRAM ERROR: {e}"
+            )
 
         print(
-            "❌ SESSION TIDAK VALID / BELUM LOGIN"
+            "🔄 Reconnect dalam 10 detik..."
         )
 
-        return
-
-    me = await client.get_me()
-
-    print(
-        f"✅ LOGIN BERHASIL | "
-        f"ID={me.id} | "
-        f"USERNAME=@{me.username}"
-    )
-
-    print(
-        "✅ Telegram Auto Reply AKTIF"
-    )
-
-    # Menjaga userbot tetap hidup
-    await client.disconnected
+        await asyncio.sleep(10)
 
 
 client.loop.run_until_complete(
