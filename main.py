@@ -23,11 +23,11 @@ PORT = int(os.getenv("PORT", "10000"))
 # =========================================================
 
 BALASAN = [
-    "RENTOD nya lagi sibuk!!!",
-    "sabar ya cok,gua lagi ga on tele",
-    "ciee ngechat,sange ya lu!!!",
-    "pesan lu ntar gua bales kalo ga sibuk!!!",
-    "lu ga penting,ntar aja chat nya gua bales"
+    "𝙍𝙀𝙉𝙏𝙊𝘿 𝙣𝙮𝙖 𝙡𝙖𝙜𝙞 𝙨𝙞𝙗𝙪𝙠!!!",
+    "𝙨𝙖𝙗𝙖𝙧 𝙮𝙖 𝙘𝙤𝙠,𝙜𝙪𝙖 𝙡𝙖𝙜𝙞 𝙜𝙖 𝙤𝙣 𝙩𝙚𝙡𝙚",
+    "𝙘𝙞𝙚𝙚 𝙣𝙜𝙚𝙘𝙝𝙖𝙩,𝙨𝙖𝙣𝙜𝙚 𝙮𝙖 𝙡𝙪!!!",
+    "𝙥𝙚𝙨𝙖𝙣 𝙡𝙪 𝙣𝙩𝙖𝙧 𝙜𝙪𝙖 𝙗𝙖𝙡𝙚𝙨 𝙠𝙖𝙡𝙤 𝙜𝙖 𝙨𝙞𝙗𝙪𝙠!!!",
+    "𝙡𝙪 𝙜𝙖 𝙥𝙚𝙣𝙩𝙞𝙣𝙜,𝙣𝙩𝙖𝙧 𝙖𝙟𝙖 𝙘𝙝𝙖𝙩 𝙣𝙮𝙖 𝙜𝙪𝙖 𝙗𝙖𝙡𝙚𝙨"
 ]
 
 
@@ -43,19 +43,40 @@ client = TelegramClient(
 
 
 # =========================================================
-# PENYIMPANAN PESAN
+# PENYIMPANAN PESAN BALASAN
 # =========================================================
 
-# Format:
-#
-# {
-#     incoming_message_id: {
-#         "chat_id": chat_id,
-#         "reply_id": id_balasan
-#     }
-# }
-#
 REPLY_MAP = {}
+
+
+# =========================================================
+# CEK APAKAH CHAT SUDAH PERNAH DIBALAS
+# =========================================================
+
+async def sudah_pernah_dibalas(chat_id):
+
+    try:
+        # Cari pesan keluar terakhir dari akun userbot
+        pesan_keluar = await client.get_messages(
+            chat_id,
+            limit=1,
+            from_user="me"
+        )
+
+        if pesan_keluar:
+            return True
+
+        return False
+
+    except Exception as e:
+
+        print(
+            f"❌ GAGAL CEK RIWAYAT CHAT | {e}"
+        )
+
+        # Kalau gagal mengecek, jangan membalas
+        # agar tidak terjadi balasan berulang
+        return True
 
 
 # =========================================================
@@ -71,11 +92,31 @@ async def auto_reply(event):
         if not event.is_private:
             return
 
-        # Jangan proses service message
+        # Jangan proses pesan kosong
         if not event.message:
             return
 
-        # Pilih balasan acak
+        # AKTIF khusus untuk pengecekan userbot
+        if event.raw_text.strip().upper() == "AKTIF":
+            return
+
+        # =================================================
+        # CEK APAKAH AKUN INI SUDAH PERNAH DIBALAS
+        # =================================================
+
+        if await sudah_pernah_dibalas(event.chat_id):
+
+            print(
+                f"⏭️ SUDAH PERNAH DIBALAS"
+                f" | chat={event.chat_id}"
+            )
+
+            return
+
+        # =================================================
+        # PILIH BALASAN ACAK
+        # =================================================
+
         balasan = random.choice(BALASAN)
 
         # Kirim balasan
@@ -106,6 +147,50 @@ async def auto_reply(event):
 
 
 # =========================================================
+# TEST USERBOT
+# PERINTAH: AKTIF
+# =========================================================
+
+@client.on(events.NewMessage(
+    incoming=True,
+    pattern=r"^AKTIF$"
+))
+async def test_userbot(event):
+
+    if not event.is_private:
+        return
+
+    await event.reply("✅ USERBOT AKTIF")
+
+    print(
+        f"🧪 TEST USERBOT BERHASIL"
+        f" | chat={event.chat_id}"
+    )
+
+
+# =========================================================
+# TEST USERBOT DARI AKUN SENDIRI
+# Bisa mengetik AKTIF di Saved Messages
+# =========================================================
+
+@client.on(events.NewMessage(
+    outgoing=True,
+    pattern=r"^AKTIF$"
+))
+async def test_userbot_sendiri(event):
+
+    if not event.is_private:
+        return
+
+    await event.reply("✅ USERBOT AKTIF")
+
+    print(
+        f"🧪 TEST USERBOT BERHASIL"
+        f" | chat={event.chat_id}"
+    )
+
+
+# =========================================================
 # HAPUS BALASAN KETIKA PESAN SUDAH DIBACA
 # =========================================================
 
@@ -113,7 +198,9 @@ async def auto_reply(event):
 async def message_read(event):
 
     try:
+
         await asyncio.sleep(1)
+
         chat_id = event.chat_id
         max_id = event.max_id
 
@@ -123,8 +210,6 @@ async def message_read(event):
             f" | max_id={max_id}"
         )
 
-        # Ambil salinan supaya dictionary
-        # aman ketika sedang dihapus
         for incoming_id, data in list(REPLY_MAP.items()):
 
             saved_chat_id = data["chat_id"]
@@ -139,7 +224,6 @@ async def message_read(event):
 
                 try:
 
-                    # Hapus balasan otomatis
                     await client.delete_messages(
                         chat_id,
                         reply_id
@@ -151,7 +235,6 @@ async def message_read(event):
                         f" | reply={reply_id}"
                     )
 
-                    # Hapus dari daftar
                     del REPLY_MAP[incoming_id]
 
                 except Exception as e:
@@ -167,57 +250,7 @@ async def message_read(event):
             f"❌ ERROR MESSAGE READ: {e}"
         )
 
-# =========================================================
-# TEST USERBOT
-# =========================================================
 
-@client.on(events.NewMessage(pattern=r"^/test$"))
-async def test_userbot(event):
-
-    if not event.is_private:
-        return
-
-    await event.reply("✅ USERBOT AKTIF")
-    print("🧪 TEST USERBOT BERHASIL")
-   
-@client.on(events.MessageRead())
-async def message_read(event):
-    try:
-        await asyncio.sleep(1)
-
-        chat_id = event.chat_id
-        max_id = event.max_id
-
-        print(
-            f"👀 PESAN DIBACA | chat={chat_id} | max_id={max_id}"
-        )
-
-        for incoming_id, data in list(REPLY_MAP.items()):
-
-            if data["chat_id"] != chat_id:
-                continue
-
-            if incoming_id <= max_id:
-
-                try:
-                    await client.delete_messages(
-                        chat_id,
-                        data["reply_id"]
-                    )
-
-                    print(
-                        f"🗑️ BALASAN DIHAPUS | "
-                        f"chat={chat_id} | "
-                        f"reply={data['reply_id']}"
-                    )
-
-                    del REPLY_MAP[incoming_id]
-
-                except Exception as e:
-                    print(f"❌ GAGAL HAPUS BALASAN | {e}")
-
-    except Exception as e:
-        print(f"❌ ERROR MESSAGE READ: {e}")
 # =========================================================
 # RENDER WEB SERVER
 # =========================================================
@@ -227,10 +260,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
 
         self.send_response(200)
+
         self.send_header(
             "Content-Type",
             "text/plain"
         )
+
         self.end_headers()
 
         self.wfile.write(
@@ -269,13 +304,9 @@ threading.Thread(
 # START TELEGRAM
 # =========================================================
 
-print("🤖 Telegram Auto Reply sedang dimulai...")
-
-# =========================================================
-# START TELEGRAM
-# =========================================================
-
-print("🤖 Telegram Auto Reply sedang dimulai...")
+print(
+    "🤖 Telegram Auto Reply sedang dimulai..."
+)
 
 
 async def start_telegram():
@@ -283,7 +314,11 @@ async def start_telegram():
     await client.connect()
 
     if not await client.is_user_authorized():
-        print("❌ SESSION TIDAK VALID / BELUM LOGIN")
+
+        print(
+            "❌ SESSION TIDAK VALID / BELUM LOGIN"
+        )
+
         return
 
     me = await client.get_me()
@@ -294,10 +329,14 @@ async def start_telegram():
         f"USERNAME=@{me.username}"
     )
 
-    print("✅ Telegram Auto Reply AKTIF")
+    print(
+        "✅ Telegram Auto Reply AKTIF"
+    )
 
     # Menjaga userbot tetap hidup
     await client.disconnected
 
 
-client.loop.run_until_complete(start_telegram())
+client.loop.run_until_complete(
+    start_telegram()
+)
